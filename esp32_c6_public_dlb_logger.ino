@@ -6,6 +6,9 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>
+
+String fingerprit;
 
 WiFiMulti wifiMulti;
 
@@ -22,9 +25,14 @@ void setup() {
         delay(1000);
     }
 
-    wifiMulti.addAP("SSID", "PASSWORD");
+    WiFi.mode(WIFI_STA); //for OTA Update
+
+    wifiMulti.addAP("dlb", "www.dlb.one");
 
 }
+
+
+
 
 void loop() {
 
@@ -32,7 +40,7 @@ void loop() {
         HTTPClient http;
         Serial.print("[HTTP] begin...\n");
 
-        http.begin("http://dlb.com.pl/api.php?fingerprint=1");
+        http.begin("http://debug.dlb.com.pl/api.php?name=dlb&command=fingerprint");
         //http.begin("http://dlb.com.pl", 80, "/api.php");
 
         Serial.print("[HTTP] GET...\n");
@@ -57,6 +65,7 @@ void loop() {
                     }
                     delay(2);
                 }
+                fingerprit = String((char * )buff);
                 Serial.println();
                 Serial.println("END");
             }
@@ -65,6 +74,26 @@ void loop() {
         }
 
         http.end();
+
+        //OTA REMOTE UPDATE
+        WiFiClient client;
+            t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/test.bin");
+            //t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/test.bin", 80, "/test.bin");
+
+            switch (ret) {
+              case HTTP_UPDATE_FAILED:
+                Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+                break;
+
+              case HTTP_UPDATE_NO_UPDATES:
+                Serial.println("HTTP_UPDATE_NO_UPDATES");
+                break;
+
+              case HTTP_UPDATE_OK:
+                Serial.println("HTTP_UPDATE_OK");
+                break;
+            }
+
     }
     delay(5000);
 }
