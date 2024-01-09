@@ -1,15 +1,21 @@
 /**
  * MiT licence
  *
+  ToDo -> log in to wifi network, get the fingerpint from the server dlb.com.pl, update firmware if available
+  Update only in no encrpyt mode
  */
+int firmware_version = 2;
+int server_firmware_version = 0;
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <ArduinoJson.h>
 
-String fingerprit;
 
+String server_fingerprit;
 WiFiMulti wifiMulti;
 
 void setup() {
@@ -28,9 +34,7 @@ void setup() {
     WiFi.mode(WIFI_STA); //for OTA Update
 
     wifiMulti.addAP("dlb", "www.dlb.one");
-
 }
-
 
 
 
@@ -40,7 +44,7 @@ void loop() {
         HTTPClient http;
         Serial.print("[HTTP] begin...\n");
 
-        http.begin("http://debug.dlb.com.pl/api.php?name=dlb&command=fingerprint");
+        http.begin("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device="+String(WiFi.macAddress()));
         //http.begin("http://dlb.com.pl", 80, "/api.php");
 
         Serial.print("[HTTP] GET...\n");
@@ -65,8 +69,17 @@ void loop() {
                     }
                     delay(2);
                 }
-                fingerprit = String((char * )buff);
+                JsonDocument doc;
+                deserializeJson(doc, buff); //buff from server = {"result":[df6238cc603929ca39cce627de1d0cabd8007c83,2]}
+
+                const char* server_result_   = doc["result"][0];
+                int server_firmware_version_ = doc["result"][1];
+
+                server_firmware_version = server_firmware_version_;
+
+               // server_fingerprit = String((char * )buff);
                 Serial.println();
+                Serial.println(server_fingerprit);
                 Serial.println("END");
             }
         } else {
@@ -75,10 +88,10 @@ void loop() {
 
         http.end();
 
+      if(server_firmware_version>firmware_version){
         //OTA REMOTE UPDATE
         WiFiClient client;
-            t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/test.bin");
-            //t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/test.bin", 80, "/test.bin");
+            t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/update"+String(server_firmware_version)+".bin"); 
 
             switch (ret) {
               case HTTP_UPDATE_FAILED:
@@ -93,6 +106,7 @@ void loop() {
                 Serial.println("HTTP_UPDATE_OK");
                 break;
             }
+      }
 
     }
     delay(5000);
