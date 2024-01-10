@@ -1,11 +1,10 @@
 /**
  * MiT licence
- *
+ * https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json
+
   ToDo -> log in to wifi network, get the fingerpint from the server dlb.com.pl, update firmware if available
   Update only in no encrpyt mode
  */
-int firmware_version = 2;
-int server_firmware_version = 0;
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -17,6 +16,12 @@ int server_firmware_version = 0;
 
 String server_fingerprit;
 WiFiMulti wifiMulti;
+
+int server_firmware_version=2;
+
+
+
+
 
 void setup() {
 
@@ -36,9 +41,9 @@ void setup() {
     wifiMulti.addAP("dlb", "www.dlb.one");
 }
 
-
-
 void loop() {
+
+  //if (global_dlb.is_numer_or_char('x')==true) Serial.println("jest znakiem :-) ");
 
     if((wifiMulti.run() == WL_CONNECTED)) {
         HTTPClient http;
@@ -69,11 +74,46 @@ void loop() {
                     }
                     delay(2);
                 }
-                JsonDocument doc;
-                deserializeJson(doc, buff); //buff from server = {"result":[df6238cc603929ca39cce627de1d0cabd8007c83,2]}
 
-                const char* server_result_   = doc["result"][0];
-                int server_firmware_version_ = doc["result"][1];
+                //JsonDocument doc;
+                //deserializeJson(doc, buff); //buff from server = {"result":[df6238cc603929ca39cce627de1d0cabd8007c83,2]}
+                Serial.println();
+                Serial.println("rzutowanie char na stirng -> ");
+                String stringOne = (char * )buff;
+                Serial.println(stringOne);
+
+                int firstClosingBracket = stringOne.indexOf('[');
+                Serial.printf("firstClosingBracket lock -> %d",firstClosingBracket);
+                firstClosingBracket += 1;
+                int lock=firstClosingBracket;
+                String pom_fingerprint;
+                len=stringOne.length();
+                while(lock<(len-2)){
+                    pom_fingerprint = pom_fingerprint + stringOne[lock];
+                    if (stringOne[lock+1]==',') lock=10000;
+                    lock++;
+                }
+
+                firstClosingBracket = stringOne.indexOf(',');
+                lock=firstClosingBracket+1;
+                String pom_version;
+                while(lock<(len-2)){
+                    pom_version = pom_version + stringOne[lock];
+                    if (stringOne[lock+1]==']') lock=10000;
+                    lock++;
+                }
+                Serial.println();
+                Serial.println("--------------------------------");
+                Serial.print("| fingerprint from server -> ");
+                Serial.println(pom_fingerprint);
+                Serial.print("| version from server -> ");
+                Serial.println(pom_version);
+                Serial.println("--------------------------------");
+                Serial.println();
+                Serial.println("manual END");
+
+                //const char* server_result_   = doc["result"][0];
+                int server_firmware_version_ = 2; //doc["result"][1];
 
                 server_firmware_version = server_firmware_version_;
 
@@ -88,10 +128,17 @@ void loop() {
 
         http.end();
 
-      if(server_firmware_version>firmware_version){
+       for(uint8_t tt = 8; tt > 0; tt--) {
+        Serial.printf("[UPDATE] %d\n", tt);
+        Serial.flush();
+        delay(1000);
+    }
+
+      if (Serial.read() == 'x') {
+         Serial.flush();
         //OTA REMOTE UPDATE
         WiFiClient client;
-            t_httpUpdate_return ret = httpUpdate.update(client, "http://dlb.com.pl/update"+String(server_firmware_version)+".bin"); 
+            t_httpUpdate_return ret = httpUpdate.update(client, "http://192.168.0.197/update"+String(server_firmware_version)+".bin");
 
             switch (ret) {
               case HTTP_UPDATE_FAILED:
@@ -109,6 +156,5 @@ void loop() {
       }
 
     }
-    delay(5000);
 }
 
