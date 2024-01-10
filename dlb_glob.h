@@ -1,6 +1,3 @@
-/*
-  dlb_glob.h - Library for flashing Morse code.
-*/
 #ifndef dlb_glob_h
 #define dlb_glob_h
 

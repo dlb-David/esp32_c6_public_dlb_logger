@@ -1,8 +1,3 @@
-/*
-  dlb_glob.cpp - Library for flashing Morse code.
-*/
-
-#include "Arduino.h"
 #include "dlb_glob.h"
 
 dlb_glob::dlb_glob(int pin) {
