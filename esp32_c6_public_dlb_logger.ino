@@ -12,6 +12,7 @@
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <ArduinoJson.h>
+#include "dlb_glob.h"
 
 
 String server_fingerprit;
@@ -19,6 +20,10 @@ WiFiMulti wifiMulti;
 
 int server_firmware_version=2;
 
+<<<<<<< HEAD
+=======
+dlb_glob dlb_glob(10);
+>>>>>>> 000155e (class dlb_glob.h, auto update improfment)
 
 
 
@@ -43,7 +48,11 @@ void setup() {
 
 void loop() {
 
+<<<<<<< HEAD
   //if (global_dlb.is_numer_or_char('x')==true) Serial.println("jest znakiem :-) ");
+=======
+  if (dlb_glob.is_numer_or_char('x')==true) Serial.println("jest znakiem :-) ");
+>>>>>>> 000155e (class dlb_glob.h, auto update improfment)
 
     if((wifiMulti.run() == WL_CONNECTED)) {
         HTTPClient http;
