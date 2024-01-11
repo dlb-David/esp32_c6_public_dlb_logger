@@ -3,14 +3,13 @@
 
 #include "Arduino.h"
 
-class dlb_glob
-{
-  public:
-    dlb_glob(int pin);
-    void begin();
-    bool is_numer_or_char(char myChar);
-  private:
-    int _pin;
+class dlb_glob {
+public:
+  dlb_glob(int pin);
+  void begin();
+  bool is_numer_or_char(char myChar);
+private:
+  int _pin;
 };
 
 #endif
