@@ -25,10 +25,7 @@ dlb_server dlb_server_obj;
 
 
 void setup() {
-    dlb_glob_obj.is_numer_or_char('x');
     Serial.begin(115200);
-    Serial.println();
-    Serial.println();
     Serial.println();
 
     for(uint8_t t = 4; t > 0; t--) {
@@ -37,25 +34,20 @@ void setup() {
         delay(1000);
     }
 
-    WiFi.mode(WIFI_STA); //for OTA Update
+    WiFi.mode(WIFI_STA); //only for OTA Update
     wifiMulti.addAP("dlb", "www.dlb.one");
 }
 
 void loop() {
-
-  //if (global_dlb.is_numer_or_char('x')==true) Serial.println("jest znakiem :-) ");
-  if (dlb_glob_obj.is_numer_or_char('x')==true) Serial.println("jest znakiem :-) ");
-  //dlb_server.set_macAddress;
-
     if((wifiMulti.run() == WL_CONNECTED)) {
-
-       dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device="+String(WiFi.macAddress()));
-
-       delay(5000);
+       
+      if (!dlb_server_obj.have_fingerprint) dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device="+String(WiFi.macAddress()));
+      
+      delay(1000);
 
       if (Serial.read() == 'x') {
-         Serial.flush();
-         dlb_server_obj.update("http://192.168.0.197/update"+String(server_firmware_version)+".bin");
+        //Serial.flush();
+        dlb_server_obj.update("http://192.168.0.197/update"+String(server_firmware_version)+".bin");
       }
 
     }
