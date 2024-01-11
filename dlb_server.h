@@ -6,6 +6,7 @@
 class dlb_server {
 public:
   dlb_server();
+  bool send_event(String addres);
   void set_macAddress();
   bool get_credential(String addres);
   bool update(String addres);

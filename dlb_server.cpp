@@ -7,7 +7,11 @@ dlb_server::dlb_server() {
 }
 
 
-
+bool dlb_server::send_event(String addres) {
+  String stringOne = get_http_buff(addres);
+  //{"result":GET OK}
+  if(stringOne.indexOf("GET OK")>3) return true; else return false;
+}
 
 bool dlb_server::get_credential(String addres) {
 
@@ -107,7 +111,7 @@ String dlb_server::get_http_buff(String addres) {
             len -= c;
           }
         }
-        delay(2);
+        delay(2);  //tooo slow ...
       }
 
       return (char*)buff;
