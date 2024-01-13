@@ -1,5 +1,5 @@
-# Open public logger - esp32_c6_public_dlb_logger
-#Wi-Fi 6, or IEEE 802.11ax, is the latest IEEE standard from the Wi-Fi
+# Open public logger (Wi-Fi 6) esp32_c6_public_dlb_logger
+Wi-Fi 6, or IEEE 802.11ax, is the latest IEEE standard from the Wi-Fi
 ![4_logger_nb](https://github.com/dlb-David/esp32_c6_public_dlb_logger/assets/155914323/351669b2-de1f-4fd2-9047-72313b23a71d)
 
 Download
