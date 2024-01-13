@@ -12,8 +12,8 @@ public:
   bool update(String addres);
   bool have_fingerprint = false;
   bool have_update_version = false;
-private:
   String get_http_buff(String addres);
+private:
   uint8_t fingerprint[128] = { 0 };
   int update_version = 0;
 };
