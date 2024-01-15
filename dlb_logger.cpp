@@ -4,6 +4,7 @@ dlb_logger::dlb_logger() {
 }
 
 void dlb_logger::P_up(int P) {
+  Serial.printf("\n Pressed button -> %i \n",P);
   if (P==1) P1++;
   if (P==2) P2++;
   if (P==3) P3++;

@@ -12,8 +12,10 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
-	
-#include "mbedtls/md.h" //SHA1 -> fingerprint
+#include <ESPmDNS.h>
+#include <WebServer.h>
+
+#include "mbedtls/md.h"  //SHA1 -> fingerprint
 
 #include "dlb_glob.h"
 #include "dlb_server.h"
@@ -22,67 +24,74 @@
 #include "dlb_eeprom.h"
 #include "dlb_LCD.h"
 
-String server_fingerprit;
-WiFiMulti wifiMulti;
-
 int server_firmware_version = 2;
 
+String server_fingerprit;
+WiFiMulti wifiMulti;
+WebServer server(80);
+
+const char *www_username = "admin";
+const char *www_password = "dlb";
+
 dlb_glob dlb_glob_obj(10);
-dlb_server dlb_server_obj;
+dlb_server dlb_server_obj(&server, server_firmware_version);
 dlb_logger dlb_logger_obj;
 dlb_clock dlb_clock_obj(0, 0, 0, 0, 0, 0, 0);
 dlb_eeprom dlb_eeprom_obj;
 dlb_LCD dlb_LCD_obj;
 
 struct Button {
-    const uint8_t PIN;
-    uint32_t numberKeyPresses;
-    bool pressed;
+  const uint8_t PIN;
+  uint32_t numberKeyPresses;
+  bool pressed;
 };
 
-Button button1 = {23, 0, false};
-Button button2 = {22, 0, false};
-Button button3 = {21, 0, false};
+Button button1 = { 23, 0, false };
+Button button2 = { 22, 0, false };
+Button button3 = { 21, 0, false };
 
-void IRAM_ATTR I_OK_pressed(){
+void IRAM_ATTR I_OK_pressed() {
   dlb_logger_obj.P_up(1);
 }
 
-void IRAM_ATTR I_POP_pressed(){
+void IRAM_ATTR I_POP_pressed() {
   dlb_logger_obj.P_up(2);
 }
 
-void IRAM_ATTR I_NOK_pressed(){
+void IRAM_ATTR I_NOK_pressed() {
   dlb_logger_obj.P_up(3);
 }
 
 void setup() {
   Serial.begin(115200);
- 
+
+  //set the resolution to 12 bits (0-4096)
+  analogReadResolution(12);
+
   //-----------------------------------------------------------------------------------------------------HASH
   char *key = "secretKey";
   char *payload = "Hello HMAC SHA 256!";
   byte hmacResult[32];
- 
+
   mbedtls_md_context_t ctx;
   mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
- 
+
   const size_t payloadLength = strlen(payload);
-  const size_t keyLength = strlen(key);            
- 
+  const size_t keyLength = strlen(key);
+
   mbedtls_md_init(&ctx);
   mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
-  mbedtls_md_hmac_starts(&ctx, (const unsigned char *) key, keyLength);
-  mbedtls_md_hmac_update(&ctx, (const unsigned char *) payload, payloadLength);
+  mbedtls_md_hmac_starts(&ctx, (const unsigned char *)key, keyLength);
+  mbedtls_md_hmac_update(&ctx, (const unsigned char *)payload, payloadLength);
   mbedtls_md_hmac_finish(&ctx, hmacResult);
   mbedtls_md_free(&ctx);
- 
-  Serial.print("Hash: "); // -> Hash: 40f08b93b298f788109624ad3505882e0467fab1b30a76993a8327097c4f4e45
- 
-  for(int i= 0; i< sizeof(hmacResult); i++){
-      char str[3];
-      sprintf(str, "%02x", (int)hmacResult[i]);
-      Serial.print(str);
+
+  Serial.print("Hash: ");  // -> Hash: 40f08b93b298f788109624ad3505882e0467fab1b30a76993a8327097c4f4e45
+
+  for (int i = 0; i < sizeof(hmacResult); i++) {
+    char str[3];
+    sprintf(str, "%02x", (int)hmacResult[i]);
+    Serial.print(str);
   }
   //-----------------------------------------------------------------------------------------------------//HASH
 
@@ -104,11 +113,26 @@ void setup() {
 
   WiFi.mode(WIFI_STA);  //only for OTA Update
   wifiMulti.addAP("dlb", "www.dlb.one");
+
+  server.on("/", []() {
+    if (!server.authenticate(www_username, www_password)) {
+      return server.requestAuthentication();
+    }
+    server.send(200, "text/plain", "Login OK");
+  });
+  server.begin();
 }
 
 void loop() {
+  server.handleClient();
+  delay(2);  //allow the cpu to switch to other tasks
+
   if ((wifiMulti.run() == WL_CONNECTED)) {
     neopixelWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);  // Green WORK
+
+    Serial.print("Open http://");
+    Serial.print(WiFi.localIP());
+    Serial.println("/ in your browser to see it working");
 
     if (!dlb_server_obj.have_fingerprint) dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device=" + String(WiFi.macAddress()));
 
@@ -125,6 +149,12 @@ void loop() {
     delay(1000);
 
     //Analog PORTS
+    // read the analog / millivolts value for pin 2:
+    int analogValue = analogRead(2);
+    int analogVolts = analogReadMilliVolts(2);
+
+    // print out the values you read:
+    Serial.printf("ADC analog value = %d -> ADC millivolts value = %d\n\n", analogValue,analogVolts);
 
     //Humidity
 
@@ -133,12 +163,12 @@ void loop() {
     //OLED LCD status
 
     //only for remote update user@user-MacBook-Air esp32.esp32.esp32c6 % scp esp32_c6_public_dlb_logger.ino.bin user@dlb.one:/var/www/html/update2.bin
-    if (Serial.read() == 'x') {
+    if (Serial.read() == 'x') {  //force update
       Serial.println();
       Serial.println("update ...");
       neopixelWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);  // Red UPDATE
       //Serial.flush();
-      dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version) + ".bin");
+      dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version) + ".bin");  //last old version
     }
   } else {
     neopixelWrite(RGB_BUILTIN, 0, 0, RGB_BRIGHTNESS);  // Blue NO INTERNET

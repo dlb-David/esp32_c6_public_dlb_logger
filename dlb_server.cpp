@@ -1,16 +1,16 @@
 #include "dlb_server.h"
-#include <HTTPClient.h>
-#include <HTTPUpdate.h>
-#include <WiFi.h>
 
-dlb_server::dlb_server() {
+dlb_server::dlb_server(WebServer* server, int logger_firmware_version) {
+  this->server_ = server;
+  logger_firmware_version_ = logger_firmware_version;
 }
 
 
 bool dlb_server::send_event(String addres) {
   String stringOne = get_http_buff(addres);
   //{"result":GET OK}
-  if(stringOne.indexOf("GET OK")>3) return true; else return false;
+  if (stringOne.indexOf("GET OK") > 3) return true;
+  else return false;
 }
 
 bool dlb_server::get_credential(String addres) {
@@ -29,9 +29,12 @@ bool dlb_server::get_credential(String addres) {
     if (stringOne[lock + 1] == ',') lock = 10000;
     lock++;
   }
+  pom_fingerprint = pom_fingerprint + '\0';
 
-  if (pom_fingerprint.length() > 10) have_fingerprint = true;
-
+  if (pom_fingerprint.length() > 10) {
+    this->have_fingerprint = true;
+    pom_fingerprint.toCharArray(this->fingerprint, pom_fingerprint.length());
+  }
 
   firstClosingBracket = stringOne.indexOf(',');
   lock = firstClosingBracket + 1;
@@ -41,17 +44,28 @@ bool dlb_server::get_credential(String addres) {
     if (stringOne[lock + 1] == ']') lock = 10000;
     lock++;
   }
+  this->update_version = pom_version.toInt();
 
   if (pom_version.length() > 0) have_update_version = true;
   Serial.println();
   Serial.println("----------------------------------------------------------------");
   Serial.print("| fingerprint from server -> ");
-  Serial.println(pom_fingerprint);
+  Serial.println(this->fingerprint);
   Serial.print("| version from server -> ");
-  Serial.println(pom_version);
+  Serial.println(this->update_version);
+  Serial.print("| version from logger -> ");
+  Serial.println(this->logger_firmware_version_);
   Serial.println("----------------------------------------------------------------");
   Serial.println();
   Serial.println("END");
+
+  if (this->update_version > this->logger_firmware_version_) {
+    Serial.println();
+    Serial.println("new auto remote update ...");
+    neopixelWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);  // Red UPDATE
+    //Serial.flush();
+    update("http:/dlb.sytes.net/update" + String(this->update_version) + ".bin");
+  }
 
   return (have_fingerprint and have_update_version);
 }
