@@ -2,14 +2,11 @@
 #define dlb_OLED_h
 
 #include "Arduino.h"
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
 class dlb_OLED {
 public:
   dlb_OLED();
-  Adafruit_SSD1306 display(int(SCREEN_WIDTH), int(SCREEN_HEIGHT), int(&Wire), int(OLED_RESET ));  //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+ //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 private:
   char NUMFLAKES = 10;      // Number of snowflakes in the animation example
   char SCREEN_WIDTH = 128;  // OLED display width, in pixels

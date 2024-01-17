@@ -73,8 +73,11 @@ bool dlb_server::get_credential(String addres) {
 bool dlb_server::update(String addres) {
   //OTA REMOTE UPDATE
   WiFiClient client;
-  t_httpUpdate_return ret = httpUpdate.update(client, addres);
 
+  neopixelWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);  // Red UPDATE
+
+  t_httpUpdate_return ret = httpUpdate.update(client, addres);
+  neopixelWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);  // Green WORK
   switch (ret) {
     case HTTP_UPDATE_FAILED:
       Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());

@@ -23,8 +23,9 @@
 #include "dlb_clock.h"
 #include "dlb_eeprom.h"
 #include "dlb_LCD.h"
+#include "dlb_OLED.h"
 
-int server_firmware_version = 2;
+int server_firmware_version = 14;
 
 String server_fingerprit;
 WiFiMulti wifiMulti;
@@ -33,12 +34,25 @@ WebServer server(80);
 const char *www_username = "admin";
 const char *www_password = "dlb";
 
+#include <GyverOLED.h>
+//GyverOLED<SSD1306_128x32, OLED_BUFFER> oled;
+//GyverOLED<SSD1306_128x32, OLED_NO_BUFFER> oled;
+//GyverOLED<SSD1306_128x64, OLED_BUFFER> oled;
+//GyverOLED<SSD1306_128x64, OLED_NO_BUFFER> oled;
+//GyverOLED<SSD1306_128x64, OLED_BUFFER, OLED_SPI, 8, 7, 6> oled;
+GyverOLED<SSH1106_128x64> oled;
+
+
+
+
 dlb_glob dlb_glob_obj(10);
 dlb_server dlb_server_obj(&server, server_firmware_version);
 dlb_logger dlb_logger_obj;
 dlb_clock dlb_clock_obj(0, 0, 0, 0, 0, 0, 0);
 dlb_eeprom dlb_eeprom_obj;
 dlb_LCD dlb_LCD_obj;
+dlb_OLED dlb_OLED_obj;
+
 
 struct Button {
   const uint8_t PIN;
@@ -62,11 +76,25 @@ void IRAM_ATTR I_NOK_pressed() {
   dlb_logger_obj.P_up(3);
 }
 
+void printScale(byte x) {
+  oled.clear();
+  oled.setScale(x);
+  for (byte i = 0; i < 8; i += x) {
+    oled.setCursor(0, i);
+    //oled.print()
+    oled.println(server_firmware_version);
+  }
+  oled.update();
+  delay(500);
+}
+
 void setup() {
   Serial.begin(115200);
 
   //set the resolution to 12 bits (0-4096)
   analogReadResolution(12);
+
+  oled.init();
 
   //-----------------------------------------------------------------------------------------------------HASH
   char *key = "secretKey";
@@ -121,15 +149,26 @@ void setup() {
     server.send(200, "text/plain", "Login OK");
   });
   server.begin();
+  while (!(wifiMulti.run() == WL_CONNECTED)) {
+  }
+  //
+  Serial.println("check update ...");
+  neopixelWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);  // Red UPDATE
+  dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version + 1) + ".bin");
 }
 
 void loop() {
   server.handleClient();
   delay(2);  //allow the cpu to switch to other tasks
 
+  printScale(1);
+  printScale(2);
+  printScale(3);
+  printScale(4);
+
   if ((wifiMulti.run() == WL_CONNECTED)) {
     neopixelWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);  // Green WORK
-
+    dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version + 1) + ".bin");
     Serial.print("Open http://");
     Serial.print(WiFi.localIP());
     Serial.println("/ in your browser to see it working");
@@ -154,7 +193,7 @@ void loop() {
     int analogVolts = analogReadMilliVolts(2);
 
     // print out the values you read:
-    Serial.printf("ADC analog value = %d -> ADC millivolts value = %d\n\n", analogValue,analogVolts);
+    Serial.printf("ADC analog value = %d -> ADC millivolts value = %d\n\n", analogValue, analogVolts);
 
     //Humidity
 
