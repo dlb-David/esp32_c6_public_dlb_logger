@@ -6,6 +6,12 @@
 
   ToDo -> log in to wifi network, get the fingerpint from the server dlb.com.pl, update firmware if available
   Update only in no encrpyt mode
+  PIN2 - ANALOG 2
+  PIN3 - ANALOG 3
+  PIN8 - LED
+
+  PIN22 - I2C CLK
+  PIN23 - I2C DATA
  */
 
 #include <Arduino.h>
@@ -25,7 +31,7 @@
 #include "dlb_LCD.h"
 #include "dlb_OLED.h"
 
-int server_firmware_version = 14;
+int server_firmware_version = 25;
 
 String server_fingerprit;
 WiFiMulti wifiMulti;
@@ -42,8 +48,8 @@ const char *www_password = "dlb";
 //GyverOLED<SSD1306_128x64, OLED_BUFFER, OLED_SPI, 8, 7, 6> oled;
 GyverOLED<SSH1106_128x64> oled;
 
-
-
+long int d60_energy=0;
+int n_cycle=0;
 
 dlb_glob dlb_glob_obj(10);
 dlb_server dlb_server_obj(&server, server_firmware_version);
@@ -152,7 +158,9 @@ void setup() {
   while (!(wifiMulti.run() == WL_CONNECTED)) {
   }
   //
-  Serial.println("check update ...");
+  Serial.print("check update ... -> http://192.168.0.197/update");
+  Serial.print((server_firmware_version+1));
+  Serial.println(".bin");
   neopixelWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);  // Red UPDATE
   dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version + 1) + ".bin");
 }
@@ -161,10 +169,16 @@ void loop() {
   server.handleClient();
   delay(2);  //allow the cpu to switch to other tasks
 
-  printScale(1);
-  printScale(2);
-  printScale(3);
-  printScale(4);
+  delay(500);
+ 
+  //read analogs
+  int analog_2 = analogReadMilliVolts(2); //CH0 <temperature>
+  int analog_3 = analogReadMilliVolts(3); //CH1 <pressure>
+  int analog_4 = analogReadMilliVolts(4); //CH2 <energy>
+  int analog_5 = analogReadMilliVolts(5); //CH3 <sigpower>
+
+  d60_energy += analog_4;
+  n_cycle++;
 
   if ((wifiMulti.run() == WL_CONNECTED)) {
     neopixelWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);  // Green WORK
@@ -173,27 +187,24 @@ void loop() {
     Serial.print(WiFi.localIP());
     Serial.println("/ in your browser to see it working");
 
-    if (!dlb_server_obj.have_fingerprint) dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device=" + String(WiFi.macAddress()));
+    if (!dlb_server_obj.have_fingerprint) {
+      dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device=" + String(WiFi.macAddress()));
+      dlb_clock_obj.set_time_from_server(dlb_server_obj.get_http_buff("http://dlb.com.pl/api.php?name=dlb&command=TIME"));
+    }
 
-    dlb_clock_obj.set_time_from_server(dlb_server_obj.get_http_buff("http://dlb.com.pl/api.php?name=dlb&command=TIME"));
-
-    delay(1000);
+    //delay(500);
 
     //IO PORSTS
-    dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=1");
-    delay(1000);
-    dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=2");
-    delay(1000);
-    dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=3");
-    delay(1000);
+   // dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=1");
+   // delay(1000);
+   // dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=2");
+   // delay(1000);
+   // dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=3");
+    //delay(1000);
 
-    //Analog PORTS
-    // read the analog / millivolts value for pin 2:
-    int analogValue = analogRead(2);
-    int analogVolts = analogReadMilliVolts(2);
+    Serial.printf("ADC analog_2 = %d, analog_3 = %d, analog_4 = %d, analog_5 = %d, d60_energy = %d\n\n", analog_2, analog_3, analog_4, analog_5, d60_energy);
 
-    // print out the values you read:
-    Serial.printf("ADC analog value = %d -> ADC millivolts value = %d\n\n", analogValue, analogVolts);
+    if(n_cycle>60) dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=1&analog=A0A"+String(analog_3)+"A"+String(d60_energy)+"A"+String(WiFi.RSSI())+"A");
 
     //Humidity
 
@@ -212,4 +223,6 @@ void loop() {
   } else {
     neopixelWrite(RGB_BUILTIN, 0, 0, RGB_BRIGHTNESS);  // Blue NO INTERNET
   }
+
+  if(n_cycle>60) {n_cycle=0; d60_energy=0;}
 }
