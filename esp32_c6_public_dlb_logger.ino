@@ -20,9 +20,7 @@
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
 #include <WebServer.h>
-
 #include "mbedtls/md.h"  //SHA1 -> fingerprint
-
 #include "dlb_glob.h"
 #include "dlb_server.h"
 #include "dlb_logger.h"
@@ -31,7 +29,24 @@
 #include "dlb_LCD.h"
 #include "dlb_OLED.h"
 
-int server_firmware_version = 25;
+#include <Time.h> //watchdog and timer
+#include <Ticker.h>
+
+///////////////////////////OLED////////////////////////////////////////////////////////////
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define NUMFLAKES     10 // Number of snowflakes in the animation example
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+bool LCD_OLED=true;
+///////////////////////////OLED////////////////////////////////////////////////////////////
+
+int server_firmware_version = 42;
 
 String server_fingerprit;
 WiFiMulti wifiMulti;
@@ -40,13 +55,6 @@ WebServer server(80);
 const char *www_username = "admin";
 const char *www_password = "dlb";
 
-#include <GyverOLED.h>
-//GyverOLED<SSD1306_128x32, OLED_BUFFER> oled;
-//GyverOLED<SSD1306_128x32, OLED_NO_BUFFER> oled;
-//GyverOLED<SSD1306_128x64, OLED_BUFFER> oled;
-//GyverOLED<SSD1306_128x64, OLED_NO_BUFFER> oled;
-//GyverOLED<SSD1306_128x64, OLED_BUFFER, OLED_SPI, 8, 7, 6> oled;
-GyverOLED<SSH1106_128x64> oled;
 
 long int d60_energy=0;
 int n_cycle=0;
@@ -65,42 +73,75 @@ struct Button {
   uint32_t numberKeyPresses;
   bool pressed;
 };
-
+/*
 Button button1 = { 23, 0, false };
 Button button2 = { 22, 0, false };
 Button button3 = { 21, 0, false };
+*/
+Button button1 = { 10, 0, false };
+Button button2 = { 20, 0, false };
+Button button3 = { 11, 0, false };
 
 void IRAM_ATTR I_OK_pressed() {
   dlb_logger_obj.P_up(1);
 }
 
-void IRAM_ATTR I_POP_pressed() {
+void IRAM_ATTR I_NOK_pressed() {
   dlb_logger_obj.P_up(2);
 }
 
-void IRAM_ATTR I_NOK_pressed() {
+void IRAM_ATTR I_POP_pressed() {
   dlb_logger_obj.P_up(3);
 }
 
-void printScale(byte x) {
-  oled.clear();
-  oled.setScale(x);
-  for (byte i = 0; i < 8; i += x) {
-    oled.setCursor(0, i);
-    //oled.print()
-    oled.println(server_firmware_version);
+Ticker secoundTick;
+volatile int watchdogCount = 0;
+
+void ISRwatchdog() {
+  watchdogCount ++;
+  Serial.println(watchdogCount);
+  Serial.println("*");
+  if (watchdogCount == 45) {
+    //only print to serial when debugging
+    //(debug) && Serial.println("Pies uciekl !");
+    esp_restart();
   }
-  oled.update();
-  delay(500);
+ //pomiar prądu żużycia energii
+ //POWER_dt=POWER_dt+getToutValue();
+ //if (POWER_dt>2000000000) POWER_dt=0;
 }
 
 void setup() {
   Serial.begin(115200);
 
+  secoundTick.attach(1, ISRwatchdog);
+
+  if(LCD_OLED) {
+      if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
+        LCD_OLED = false; //no more LCD
+      }
+      else
+      {
+        display.clearDisplay();       
+        display.setTextColor(WHITE);
+        display.setTextSize(1);
+        display.setCursor(26, 6);
+        display.print("www.");
+        display.setTextSize(2);
+        display.setCursor(51, 0);
+        display.print("dlb");
+        display.setTextSize(1);
+        display.setCursor(85, 6);
+        display.println(".one");
+        display.setTextSize(1);
+        display.print("v"+String(server_firmware_version)+" wait");
+        display.display();
+      }
+  }
+
   //set the resolution to 12 bits (0-4096)
   analogReadResolution(12);
 
-  oled.init();
 
   //-----------------------------------------------------------------------------------------------------HASH
   char *key = "secretKey";
@@ -133,17 +174,12 @@ void setup() {
   pinMode(button2.PIN, INPUT_PULLUP);
   pinMode(button3.PIN, INPUT_PULLUP);
 
-  attachInterrupt(button1.PIN, I_OK_pressed, FALLING);
+  attachInterrupt(button1.PIN, I_OK_pressed, RISING);
   attachInterrupt(button2.PIN, I_NOK_pressed, FALLING);
-  attachInterrupt(button3.PIN, I_POP_pressed, RISING);
+  attachInterrupt(button3.PIN, I_POP_pressed, FALLING);
 
   Serial.println();
   neopixelWrite(RGB_BUILTIN, 0, 0, RGB_BRIGHTNESS);  // Blue
-  for (uint8_t t = 4; t > 0; t--) {
-    Serial.printf("[SETUP] WAIT %d...\n", t);
-    Serial.flush();
-    delay(1000);
-  }
 
   WiFi.mode(WIFI_STA);  //only for OTA Update
   wifiMulti.addAP("dlb", "www.dlb.one");
@@ -167,29 +203,45 @@ void setup() {
 
 void loop() {
   server.handleClient();
-  delay(2);  //allow the cpu to switch to other tasks
 
   delay(500);
  
   //read analogs
-  int analog_2 = analogReadMilliVolts(2); //CH0 <temperature>
-  int analog_3 = analogReadMilliVolts(3); //CH1 <pressure>
-  int analog_4 = analogReadMilliVolts(4); //CH2 <energy>
-  int analog_5 = analogReadMilliVolts(5); //CH3 <sigpower>
+  int analog_1 = analogReadMilliVolts(1); // IO1 PIN9   //CH0 <temperature>
+  int analog_2 = analogReadMilliVolts(2); // IO2 PIN27  //CH0 <temperature>
+  int analog_3 = analogReadMilliVolts(3); // IO3 PIN26  //CH1 <pressure>  PIN3
+  int analog_4 = analogReadMilliVolts(4); // IO4 PIN4   //CH2 <energy>    PIN4
+  int analog_5 = analogReadMilliVolts(5); // IO5 PIN5   //CH3 <sigpower>  
 
   d60_energy += analog_4;
   n_cycle++;
 
+  if(LCD_OLED) {
+    display.clearDisplay();       
+    display.setTextColor(WHITE);
+    display.setTextSize(2);
+    display.setCursor(51, 0);
+    display.println(n_cycle);
+    display.setTextSize(1);
+    display.println("P_"+String(analog_3)+"/E_"+String(analog_4));
+    display.println(" RF -> "+String(WiFi.RSSI())+" dB");
+    display.display();
+  }
+
   if ((wifiMulti.run() == WL_CONNECTED)) {
+
+    watchdogCount=0;
+
     neopixelWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);  // Green WORK
-    dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version + 1) + ".bin");
-    Serial.print("Open http://");
-    Serial.print(WiFi.localIP());
-    Serial.println("/ in your browser to see it working");
 
     if (!dlb_server_obj.have_fingerprint) {
       dlb_server_obj.get_credential("http://dlb.com.pl/api.php?name=dlb&command=fingerprint&device=" + String(WiFi.macAddress()));
       dlb_clock_obj.set_time_from_server(dlb_server_obj.get_http_buff("http://dlb.com.pl/api.php?name=dlb&command=TIME"));
+      dlb_server_obj.update("http://192.168.0.197/update" + String(server_firmware_version + 1) + ".bin");
+      
+      Serial.print("Open http://");
+      Serial.print(WiFi.localIP());
+      Serial.println("/ in your browser to see it working");
     }
 
     //delay(500);
@@ -202,9 +254,9 @@ void loop() {
    // dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=3");
     //delay(1000);
 
-    Serial.printf("ADC analog_2 = %d, analog_3 = %d, analog_4 = %d, analog_5 = %d, d60_energy = %d\n\n", analog_2, analog_3, analog_4, analog_5, d60_energy);
+    Serial.printf("ADC analog_1 = %d, analog_2 = %d, analog_3 = %d, analog_4 = %d, analog_5 = %d, d60_energy = %d\n\n", analog_1, analog_2, analog_3, analog_4, analog_5, d60_energy);
 
-    if(n_cycle>60) dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=1&analog=A0A"+String(analog_3)+"A"+String(d60_energy)+"A"+String(WiFi.RSSI())+"A");
+    if(n_cycle>120) dlb_server_obj.send_event("http://www.dlb.com.pl/api.php?user_name=lukasz&port=1&analog=A0A"+String(analog_3)+"A"+String(d60_energy)+"A"+String(WiFi.RSSI())+"A");
 
     //Humidity
 
@@ -224,5 +276,5 @@ void loop() {
     neopixelWrite(RGB_BUILTIN, 0, 0, RGB_BRIGHTNESS);  // Blue NO INTERNET
   }
 
-  if(n_cycle>60) {n_cycle=0; d60_energy=0;}
+  if(n_cycle>120) {n_cycle=0; d60_energy=0;}
 }
