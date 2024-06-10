@@ -29,12 +29,16 @@
 #include "dlb_LCD.h"
 #include "dlb_OLED.h"
 
+#include "dlb_crypt.h"
+//set key to cryptography
+dlb_crypt Crypt("abcdef0123456789");
+
 #include <Time.h> //watchdog and timer
 #include <Ticker.h>
 
 ///////////////////////////OLED////////////////////////////////////////////////////////////
 #include <Wire.h>
-#include <Adafruit_GFX.h>
+//#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
 #define NUMFLAKES     10 // Number of snowflakes in the animation example
@@ -113,7 +117,9 @@ void ISRwatchdog() {
 
 void setup() {
   Serial.begin(115200);
-
+  while (!Serial) {
+    ; //wait
+  }
   secoundTick.attach(1, ISRwatchdog);
 
   if(LCD_OLED) {
@@ -143,6 +149,27 @@ void setup() {
   analogReadResolution(12);
 
 
+  char plain_text[] = "Dawid          ";
+  
+  // encrypt
+  int length = 0;
+  Crypt.bufferSize(plain_text, length);
+  char encrypted[length];
+  Crypt.encrypt(plain_text, encrypted, length);
+
+  Serial.println("");
+  Serial.print("Encrypted: ");
+  Serial.println(encrypted); 
+
+  //decrypt
+  length = strlen(encrypted);
+  char decrypted[length];
+  Crypt.decrypt(encrypted, decrypted, length);
+
+  Serial.print("Decrypted: ");
+  Serial.println(decrypted);
+
+
   //-----------------------------------------------------------------------------------------------------HASH
   char *key = "secretKey";
   char *payload = "Hello HMAC SHA 256!";
@@ -150,7 +177,6 @@ void setup() {
 
   mbedtls_md_context_t ctx;
   mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-
   const size_t payloadLength = strlen(payload);
   const size_t keyLength = strlen(key);
 
